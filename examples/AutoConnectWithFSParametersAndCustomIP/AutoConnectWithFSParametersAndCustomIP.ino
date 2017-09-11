@@ -4,6 +4,7 @@
 #include <ESP8266WiFi.h>          //https://github.com/esp8266/Arduino
 #else
 #include <WiFi.h>          //https://github.com/esp8266/Arduino
+#include <SPIFFS.h>
 #endif
 
 //needed for library
