@@ -273,6 +273,9 @@ int WiFiManager::connectWifi(String ssid, String pass) {
   }
   //check if we have ssid and pass and force those, if not, try with last saved values
   if (ssid != "") {
+#if defined(ESP32)
+    WiFi.disconnect(true);
+#endif
     WiFi.begin(ssid.c_str(), pass.c_str());
   } else {
     if (WiFi.SSID()) {
