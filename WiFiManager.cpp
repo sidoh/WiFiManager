@@ -92,14 +92,14 @@ bool WiFiManager::addParameter(WiFiManagerParameter *p) {
     if (new_params != NULL) {
       _params = new_params;
     } else {
-      DEBUG_WM(F("ERROR: failed to realloc params, size not increased!"));
+      DEBUG_WM("ERROR: failed to realloc params, size not increased!");
       return false;
     }
   }
 
   _params[_paramsCount] = p;
   _paramsCount++;
-  DEBUG_WM(F("Adding parameter"));
+  DEBUG_WM("Adding parameter");
   DEBUG_WM(p->getID());
   return true;
 }
@@ -143,14 +143,14 @@ void WiFiManager::setupConfigPortal() {
   dnsServer->start(DNS_PORT, "*", WiFi.softAPIP());
 
   /* Setup web pages: root, wifi config pages, SO captive portal detectors and not found. */
-  server->on(String(F("/")), std::bind(&WiFiManager::handleRoot, this));
-  server->on(String(F("/wifi")), std::bind(&WiFiManager::handleWifi, this, true));
-  server->on(String(F("/0wifi")), std::bind(&WiFiManager::handleWifi, this, false));
-  server->on(String(F("/wifisave")), std::bind(&WiFiManager::handleWifiSave, this));
-  server->on(String(F("/i")), std::bind(&WiFiManager::handleInfo, this));
-  server->on(String(F("/r")), std::bind(&WiFiManager::handleReset, this));
+  server->on("/", std::bind(&WiFiManager::handleRoot, this));
+  server->on("/wifi", std::bind(&WiFiManager::handleWifi, this, true));
+  server->on("/0wifi", std::bind(&WiFiManager::handleWifi, this, false));
+  server->on("/wifisave", std::bind(&WiFiManager::handleWifiSave, this));
+  server->on("/i", std::bind(&WiFiManager::handleInfo, this));
+  server->on("/r", std::bind(&WiFiManager::handleReset, this));
   //server->on("/generate_204", std::bind(&WiFiManager::handle204, this));  //Android/Chrome OS captive portal check.
-  server->on(String(F("/fwlink")), std::bind(&WiFiManager::handleRoot, this));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
+  server->on("/fwlink", std::bind(&WiFiManager::handleRoot, this));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
   server->onNotFound (std::bind(&WiFiManager::handleNotFound, this));
   server->begin(); // Web server start
   DEBUG_WM(F("HTTP server started"));
@@ -199,7 +199,7 @@ boolean WiFiManager::startConfigPortal() {
 boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPassword) {
   //setup AP
   WiFi.mode(WIFI_AP_STA);
-  DEBUG_WM(F("SET AP STA"));
+  DEBUG_WM("SET AP STA");
 
   _apName = apName;
   _apPassword = apPassword;
@@ -252,6 +252,10 @@ boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPasswo
         break;
       }
     }
+
+    // give some time to the caller if they have asked for it
+    if (_setupLoopCallback)
+      _setupLoopCallback();
     yield();
   }
 
@@ -273,7 +277,7 @@ int WiFiManager::connectWifi(String ssid, String pass) {
   }
   //fix for auto connect racing issue
   if (WiFi.status() == WL_CONNECTED) {
-    DEBUG_WM(F("Already connected. Bailing out."));
+    DEBUG_WM("Already connected. Bailing out.");
     return WL_CONNECTED;
   }
   //check if we have ssid and pass and force those, if not, try with last saved values
@@ -281,7 +285,7 @@ int WiFiManager::connectWifi(String ssid, String pass) {
     WiFi.begin(ssid.c_str(), pass.c_str());
   } else {
     if (WiFi.SSID()) {
-      DEBUG_WM(F("Using last saved values, should be faster"));
+      DEBUG_WM("Using last saved values, should be faster");
       //trying to fix connection in progress hanging
       ETS_UART_INTR_DISABLE();
       wifi_station_disconnect();
@@ -289,7 +293,7 @@ int WiFiManager::connectWifi(String ssid, String pass) {
 
       WiFi.begin();
     } else {
-      DEBUG_WM(F("No saved credentials"));
+      DEBUG_WM("No saved credentials");
     }
   }
 
@@ -329,9 +333,9 @@ uint8_t WiFiManager::waitForConnectResult() {
 }
 
 void WiFiManager::startWPS() {
-  DEBUG_WM(F("START WPS"));
+  DEBUG_WM("START WPS");
   WiFi.beginWPSConfig();
-  DEBUG_WM(F("END WPS"));
+  DEBUG_WM("END WPS");
 }
 /*
   String WiFiManager::getSSID() {
@@ -413,10 +417,10 @@ void WiFiManager::handleRoot() {
   page += FPSTR(HTTP_STYLE);
   page += _customHeadElement;
   page += FPSTR(HTTP_HEAD_END);
-  page += String(F("<h1>"));
+  page += "<h1>";
   page += _apName;
-  page += String(F("</h1>"));
-  page += String(F("<h3>WiFiManager</h3>"));
+  page += "</h1>";
+  page += F("<h3>WiFiManager</h3>");
   page += FPSTR(HTTP_PORTAL_OPTIONS);
   page += FPSTR(HTTP_END);
 
@@ -757,6 +761,11 @@ void WiFiManager::setCustomHeadElement(const char* element) {
 //if this is true, remove duplicated Access Points - defaut true
 void WiFiManager::setRemoveDuplicateAPs(boolean removeDuplicates) {
   _removeDuplicateAPs = removeDuplicates;
+}
+
+//callback in loop during the setup phase, to allow for third party execution during setup wait
+void WiFiManager::setSetupLoopCallback(void (*func)(void)) {
+  _setupLoopCallback = func;
 }
 
 
