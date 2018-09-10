@@ -47,7 +47,7 @@ void WiFiManagerParameter::init(const char *id, const char *placeholder, const c
   _placeholder = placeholder;
   _length = length;
   _value = new char[length + 1];
-  for (int i = 0; i < length; i++) {
+  for (int i = 0; i < length + 1; i++) {
     _value[i] = 0;
   }
   if (defaultValue != NULL) {
@@ -55,6 +55,12 @@ void WiFiManagerParameter::init(const char *id, const char *placeholder, const c
   }
 
   _customHTML = custom;
+}
+
+WiFiManagerParameter::~WiFiManagerParameter() {
+  if (_value != NULL) {
+    delete[] _value;
+  }
 }
 
 const char* WiFiManagerParameter::getValue() {
@@ -73,22 +79,42 @@ const char* WiFiManagerParameter::getCustomHTML() {
   return _customHTML;
 }
 
+
 WiFiManager::WiFiManager() {
+    _max_params = WIFI_MANAGER_MAX_PARAMS;
+    _params = (WiFiManagerParameter**)malloc(_max_params * sizeof(WiFiManagerParameter*));
 }
 
-void WiFiManager::addParameter(WiFiManagerParameter *p) {
-  if(_paramsCount + 1 > WIFI_MANAGER_MAX_PARAMS)
+WiFiManager::~WiFiManager()
+{
+    if (_params != NULL)
+    {
+        DEBUG_WM(F("freeing allocated params!"));
+        free(_params);
+    }
+}
+
+bool WiFiManager::addParameter(WiFiManagerParameter *p) {
+  if(_paramsCount + 1 > _max_params)
   {
-    //Max parameters exceeded!
-	DEBUG_WM("WIFI_MANAGER_MAX_PARAMS exceeded, increase number (in WiFiManager.h) before adding more parameters!");
-	DEBUG_WM("Skipping parameter with ID:");
-	DEBUG_WM(p->getID());
-	return;
+    // rezise the params array
+    _max_params += WIFI_MANAGER_MAX_PARAMS;
+    DEBUG_WM(F("Increasing _max_params to:"));
+    DEBUG_WM(_max_params);
+    WiFiManagerParameter** new_params = (WiFiManagerParameter**)realloc(_params, _max_params * sizeof(WiFiManagerParameter*));
+    if (new_params != NULL) {
+      _params = new_params;
+    } else {
+      DEBUG_WM(F("ERROR: failed to realloc params, size not increased!"));
+      return false;
+    }
   }
+
   _params[_paramsCount] = p;
   _paramsCount++;
-  DEBUG_WM("Adding parameter");
+  DEBUG_WM(F("Adding parameter"));
   DEBUG_WM(p->getID());
+  return true;
 }
 
 void WiFiManager::setupConfigPortal() {
@@ -134,14 +160,14 @@ void WiFiManager::setupConfigPortal() {
   dnsServer->start(DNS_PORT, "*", WiFi.softAPIP());
 
   /* Setup web pages: root, wifi config pages, SO captive portal detectors and not found. */
-  server->on("/", std::bind(&WiFiManager::handleRoot, this));
-  server->on("/wifi", std::bind(&WiFiManager::handleWifi, this, true));
-  server->on("/0wifi", std::bind(&WiFiManager::handleWifi, this, false));
-  server->on("/wifisave", std::bind(&WiFiManager::handleWifiSave, this));
-  server->on("/i", std::bind(&WiFiManager::handleInfo, this));
-  server->on("/r", std::bind(&WiFiManager::handleReset, this));
+  server->on(String(F("/")), std::bind(&WiFiManager::handleRoot, this));
+  server->on(String(F("/wifi")), std::bind(&WiFiManager::handleWifi, this, true));
+  server->on(String(F("/0wifi")), std::bind(&WiFiManager::handleWifi, this, false));
+  server->on(String(F("/wifisave")), std::bind(&WiFiManager::handleWifiSave, this));
+  server->on(String(F("/i")), std::bind(&WiFiManager::handleInfo, this));
+  server->on(String(F("/r")), std::bind(&WiFiManager::handleReset, this));
   //server->on("/generate_204", std::bind(&WiFiManager::handle204, this));  //Android/Chrome OS captive portal check.
-  server->on("/fwlink", std::bind(&WiFiManager::handleRoot, this));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
+  server->on(String(F("/fwlink")), std::bind(&WiFiManager::handleRoot, this));  //Microsoft captive portal. Maybe not needed. Might be handled by notFound handler.
   server->onNotFound (std::bind(&WiFiManager::handleNotFound, this));
   server->begin(); // Web server start
   DEBUG_WM(F("HTTP server started"));
@@ -192,9 +218,20 @@ boolean WiFiManager::startConfigPortal() {
 }
 
 boolean  WiFiManager::startConfigPortal(char const *apName, char const *apPassword) {
-  //setup AP
-  WiFi.mode(WIFI_AP_STA);
-  DEBUG_WM("SET AP STA");
+  
+  if(!WiFi.isConnected()){
+    WiFi.persistent(false);
+    // disconnect sta, start ap
+    WiFi.disconnect(); //  this alone is not enough to stop the autoconnecter
+    WiFi.mode(WIFI_AP);
+    WiFi.persistent(true);
+  } 
+  else {
+    //setup AP
+    WiFi.mode(WIFI_AP_STA);
+    DEBUG_WM(F("SET AP STA"));
+  }
+
 
   _apName = apName;
   _apPassword = apPassword;
@@ -268,7 +305,7 @@ int WiFiManager::connectWifi(String ssid, String pass) {
   }
   //fix for auto connect racing issue
   if (WiFi.status() == WL_CONNECTED) {
-    DEBUG_WM("Already connected. Bailing out.");
+    DEBUG_WM(F("Already connected. Bailing out."));
     return WL_CONNECTED;
   }
   //check if we have ssid and pass and force those, if not, try with last saved values
@@ -276,8 +313,8 @@ int WiFiManager::connectWifi(String ssid, String pass) {
     WiFi.begin(ssid.c_str(), pass.c_str());
   } else {
     if (WiFi.SSID()) {
-      DEBUG_WM("Using last saved values, should be faster");
 #if defined(ESP8266)
+      DEBUG_WM(F("Using last saved values, should be faster"));
       //trying to fix connection in progress hanging
       ETS_UART_INTR_DISABLE();
       wifi_station_disconnect();
@@ -288,7 +325,7 @@ int WiFiManager::connectWifi(String ssid, String pass) {
 
       WiFi.begin();
     } else {
-      DEBUG_WM("No saved credentials");
+      DEBUG_WM(F("No saved credentials"));
     }
   }
 
@@ -296,11 +333,13 @@ int WiFiManager::connectWifi(String ssid, String pass) {
   DEBUG_WM ("Connection result: ");
   DEBUG_WM ( connRes );
   //not connected, WPS enabled, no pass - first attempt
+  #ifdef NO_EXTRA_4K_HEAP
   if (_tryWPS && connRes != WL_CONNECTED && pass == "") {
     startWPS();
     //should be connected at the end of WPS
     connRes = waitForConnectResult();
   }
+  #endif
   return connRes;
 }
 
@@ -328,6 +367,7 @@ uint8_t WiFiManager::waitForConnectResult() {
 }
 
 void WiFiManager::startWPS() {
+<<<<<<< HEAD
 #if defined(ESP8266)
   DEBUG_WM("START WPS");
   WiFi.beginWPSConfig();
@@ -336,6 +376,11 @@ void WiFiManager::startWPS() {
   // TODO
   DEBUG_WM("ESP32 WPS TODO");
 #endif
+=======
+  DEBUG_WM(F("START WPS"));
+  WiFi.beginWPSConfig();
+  DEBUG_WM(F("END WPS"));
+>>>>>>> b2f6ff4a1fab22fe1800eea24a83d1d2c7add760
 }
 /*
   String WiFiManager::getSSID() {
@@ -420,10 +465,10 @@ void WiFiManager::handleRoot() {
   page += FPSTR(HTTP_STYLE);
   page += _customHeadElement;
   page += FPSTR(HTTP_HEAD_END);
-  page += "<h1>";
+  page += String(F("<h1>"));
   page += _apName;
-  page += "</h1>";
-  page += F("<h3>WiFiManager</h3>");
+  page += String(F("</h1>"));
+  page += String(F("<h3>WiFiManager</h3>"));
   page += FPSTR(HTTP_PORTAL_OPTIONS);
   page += FPSTR(HTTP_END);
 
@@ -608,7 +653,7 @@ void WiFiManager::handleWifiSave() {
     //read parameter
     String value = server->arg(_params[i]->getID()).c_str();
     //store it in array
-    value.toCharArray(_params[i]->_value, _params[i]->_length);
+    value.toCharArray(_params[i]->_value, _params[i]->_length + 1);
     DEBUG_WM(F("Parameter"));
     DEBUG_WM(_params[i]->getID());
     DEBUG_WM(value);
@@ -809,7 +854,7 @@ int WiFiManager::getRSSIasQuality(int RSSI) {
 
 /** Is this an IP? */
 boolean WiFiManager::isIp(String str) {
-  for (int i = 0; i < str.length(); i++) {
+  for (size_t i = 0; i < str.length(); i++) {
     int c = str.charAt(i);
     if (c != '.' && (c < '0' || c > '9')) {
       return false;
