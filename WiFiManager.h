@@ -109,8 +109,6 @@ class WiFiManager
     bool          addParameter(WiFiManagerParameter *p);
     //if this is set, it will exit after config, even if connection is unsuccessful.
     void          setBreakAfterConfig(boolean shouldBreak);
-    //if this is set, try WPS setup when starting (this will delay config portal for up to 2 mins)
-    //TODO
     //if this is set, customise style
     void          setCustomHeadElement(const char* element);
     //if this is true, remove duplicated Access Points - defaut true
@@ -130,7 +128,6 @@ class WiFiManager
     //const String  HTTP_HEAD = "<!DOCTYPE html><html lang=\"en\"><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"/><title>{v}</title>";
 
     void          setupConfigPortal();
-    void          startWPS();
 
     const char*   _apName                 = "no-net";
     const char*   _apPassword             = NULL;
@@ -151,7 +148,6 @@ class WiFiManager
     int           _minimumQuality         = -1;
     boolean       _removeDuplicateAPs     = true;
     boolean       _shouldBreakAfterConfig = false;
-    boolean       _tryWPS                 = false;
 
     const char*   _customHeadElement      = "";
 
