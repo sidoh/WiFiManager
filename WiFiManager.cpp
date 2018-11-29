@@ -370,20 +370,9 @@ uint8_t WiFiManager::waitForConnectResult() {
 }
 
 void WiFiManager::startWPS() {
-<<<<<<< HEAD
-#if defined(ESP8266)
-  DEBUG_WM("START WPS");
-  WiFi.beginWPSConfig();
-  DEBUG_WM("END WPS");
-#else
-  // TODO
-  DEBUG_WM("ESP32 WPS TODO");
-#endif
-=======
   DEBUG_WM(F("START WPS"));
   WiFi.beginWPSConfig();
   DEBUG_WM(F("END WPS"));
->>>>>>> b2f6ff4a1fab22fe1800eea24a83d1d2c7add760
 }
 /*
   String WiFiManager::getSSID() {
