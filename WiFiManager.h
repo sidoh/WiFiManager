@@ -27,11 +27,6 @@
 extern "C" {
   #include "user_interface.h"
 }
-#define ESP_getChipId()   (ESP.getChipId())
-#else
-#include <esp_wifi.h>
-#define ESP_getChipId()   ((uint32_t)ESP.getEfuseMac())
-#endif
 
 #ifndef WIFI_MANAGER_MAX_PARAMS
 #define WIFI_MANAGER_MAX_PARAMS 10
