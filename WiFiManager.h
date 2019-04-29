@@ -27,6 +27,11 @@
 extern "C" {
   #include "user_interface.h"
 }
+#define ESP_getChipId()   (ESP.getChipId())
+#else
+#include <esp_wifi.h>
+#define ESP_getChipId()   ((uint32_t)ESP.getEfuseMac())
+#endif
 
 #ifndef WIFI_MANAGER_MAX_PARAMS
 #define WIFI_MANAGER_MAX_PARAMS 10
@@ -34,7 +39,7 @@ extern "C" {
 
 class WiFiManagerParameter {
   public:
-    /** 
+    /**
         Create custom parameters that can be added to the WiFiManager setup web page
         @id is used for HTTP queries and must not contain spaces nor other special characters
     */
